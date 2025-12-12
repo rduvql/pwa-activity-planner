@@ -60,6 +60,7 @@ const addActivity = () => {
         title: newActivityTitle.value.trim(),
         date: newActivityDate.value,
         todos: defaultTodo,
+        image: []
     };
 
     activities.value.push(newActivity);
@@ -85,14 +86,30 @@ const deleteActivity = (id: string) => {
     }
 };
 
+function localStorageSizeMB() {
+    let total = 0;
+
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+            const value = localStorage.getItem(key);
+            if (value) {
+                total += key.length + value.length;
+            }
+        }
+    }
+
+    // convert bytes => MB
+    return (total / (1024 * 1024)).toFixed(3);
+}
 </script>
 
 <template>
     <div class="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50">
         <div class="container mx-auto px-4 py-8 max-w-7xl">
             <header class="mb-8">
-                <h1 class="text-4xl font-bold text-gray-800 mb-2"> Activity Planner ({{ activities.length }}) </h1>
-                <!-- <p class="text-gray-600">Plan your activities and manage todos</p> -->
+                <h1 class="text-4xl font-bold text-gray-800 mb-2"> Event Planner ({{ activities.length }}) </h1>
+                <p class="text-gray-600">localStorage size ~ {{ localStorageSizeMB() }}</p>
             </header>
 
             <div class="mb-8">

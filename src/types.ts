@@ -9,4 +9,5 @@ export interface Activity {
     title: string;
     date: string;
     todos: TodoItem[];
+    image: string[];
 }
