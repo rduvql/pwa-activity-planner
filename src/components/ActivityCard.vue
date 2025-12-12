@@ -48,18 +48,6 @@ const handleImageUpload = (event: Event) => {
     reader.readAsDataURL(file);
 };
 
-const removeImage = (index: number) => {
-    imagePreview.value.splice(index, 1);
-    emit('update', {
-        ...props.activity,
-        image: imagePreview.value
-    });
-
-    if (fileInput.value) {
-        fileInput.value.value = '';
-    }
-};
-
 const triggerFileInput = () => {
     fileInput.value?.click();
 };

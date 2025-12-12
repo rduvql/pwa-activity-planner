@@ -6,6 +6,7 @@ export default defineConfig({
     server: {
         host: "0.0.0.0"
     },
+    base: "/planner/",
     plugins: [
         vue(),
         VitePWA({
@@ -16,14 +17,16 @@ export default defineConfig({
                 short_name: 'Planner',
                 description: 'Plan activities with integrated todo lists',
                 theme_color: '#6366f1',
+                start_url: "/planner/",
+                scope: '/planner/',
                 icons: [
                     {
-                        src: 'pwa-192x192.png',
+                        src: '/planner/pwa-192x192.png',
                         sizes: '192x192',
                         type: 'image/png'
                     },
                     {
-                        src: 'pwa-512x512.png',
+                        src: '/planner/pwa-512x512.png',
                         sizes: '512x512',
                         type: 'image/png'
                     }
