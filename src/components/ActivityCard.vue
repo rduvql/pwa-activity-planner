@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import type { Activity, TodoItem } from '../types';
 import { formatDate } from '../utils/dateUtils';
 
@@ -16,6 +16,8 @@ const newTodoText = ref('');
 const isEditing = ref(false);
 const editTitle = ref(props.activity.title);
 const editDate = ref(props.activity.date);
+const todoToDelete = ref<string | null>(null);
+const imageToDelete = ref<string | null>(null);
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const imagePreview = ref<string[]>(props.activity.image || []);
@@ -88,12 +90,39 @@ const toggleTodo = (todoId: string) => {
     });
 };
 
-const deleteTodo = (todoId: string) => {
-    if (confirm("Confirm removal ?")) {
+const handleDeleteTodo = (todoId: string, event: MouseEvent) => {
+    console.log("handleDeleteTodo");
+    event.stopPropagation();
+
+    if (todoToDelete.value === todoId) {
         emit('update', {
             ...props.activity,
             todos: props.activity.todos.filter(todo => todo.id !== todoId)
         });
+        todoToDelete.value = null;
+    } else {
+        todoToDelete.value = todoId;
+    }
+};
+
+const handleDeleteImage = (index: number, event: MouseEvent) => {
+    console.log("handleDeleteImage");
+    event.stopPropagation();
+
+    if (imageToDelete.value === `${index}`) {
+
+        imagePreview.value.splice(index, 1);
+
+        emit('update', {
+            ...props.activity,
+            image: imagePreview.value
+        });
+        if (fileInput.value) {
+            fileInput.value.value = '';
+        }
+        imageToDelete.value = null;
+    } else {
+        imageToDelete.value = `${index}`;
     }
 };
 
@@ -141,6 +170,26 @@ const isDraft = (): boolean => {
 const isValidated = (): boolean => {
     return props.activity.title.includes("OK");
 };
+
+const handleClickOutside = (event: MouseEvent) => {
+    // console.log(event);
+    const target = event.target as HTMLElement;
+    // Check if click is not on a trash icon button
+    if (!target.closest('button[data-delete-todo]')) {
+        todoToDelete.value = null;
+    }
+    if (!target.closest("button[data-delete-image]")) {
+        imageToDelete.value = null;
+    }
+};
+
+onMounted(() => {
+    document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
+});
 </script>
 
 <template>
@@ -174,7 +223,7 @@ const isValidated = (): boolean => {
                 type="text"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="Activity title"
-                @keypress.enter="saveEdit"/>
+                @keypress.enter="saveEdit" />
             <input
                 v-model="editDate"
                 type="date"
@@ -195,10 +244,13 @@ const isValidated = (): boolean => {
 
         <!-- TODO checkbox -->
         <div class="space-y-2 mb-3">
-            <div
-                v-for="todo in getTodos()"
+            <div v-for="todo in getTodos()"
                 :key="todo.id"
-                class="flex items-center gap-2 group">
+                :class="[
+                    'flex items-center gap-2 p-1 rounded transition-colors duration-200',
+                    todoToDelete === todo.id ? 'bg-red-900/30 border border-red-500/50' : ''
+                ]">
+
                 <input
                     type="checkbox"
                     :checked="todo.completed"
@@ -211,10 +263,25 @@ const isValidated = (): boolean => {
                     ]">
                     {{ todo.text }}
                 </span>
+
+                <!-- DELETE button -->
                 <button
-                    @click="deleteTodo(todo.id)"
-                    class="text-red-500 hover:text-red-600 text-xs">
-                    Remove
+                    @click="handleDeleteTodo(todo.id, $event)"
+                    :class="[
+                        'rounded transition-all duration-200',
+                        todoToDelete === todo.id
+                            ? 'text-red-400 hover:text-red-300 opacity-100'
+                            : 'text-black-500 hover:text-black-400 '
+                    ]"
+                    :title="todoToDelete === todo.id ? 'Click again to confirm deletion' : 'Delete todo'">
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
                 </button>
             </div>
         </div>
@@ -224,7 +291,10 @@ const isValidated = (): boolean => {
             <div
                 v-for="todo in getTodosLink()"
                 :key="todo.id"
-                class="flex items-center gap-2 group">
+                :class="[
+                    'flex items-center gap-2 p-1 rounded transition-colors duration-200',
+                    todoToDelete === todo.id ? 'bg-red-900/30 border border-red-500/50' : ''
+                ]">
 
                 <span
                     :class="[
@@ -232,10 +302,25 @@ const isValidated = (): boolean => {
                     ]">
                     <a target="_blank" :href="todo.text">{{ getHostName(todo.text) }}</a>
                 </span>
+
+                <!-- DELETE button -->
                 <button
-                    @click="deleteTodo(todo.id)"
-                    class="text-red-500 hover:text-red-600 text-xs">
-                    Remove
+                    @click="handleDeleteTodo(todo.id, $event)"
+                    :class="[
+                        'rounded transition-all duration-200',
+                        todoToDelete === todo.id
+                            ? 'text-red-400 hover:text-red-300 opacity-100'
+                            : 'text-black-500 hover:text-black-400 '
+                    ]"
+                    :title="todoToDelete === todo.id ? 'Click again to confirm deletion' : 'Delete todo'">
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
                 </button>
             </div>
         </div>
@@ -249,9 +334,10 @@ const isValidated = (): boolean => {
                     @click="imageZoom = imgg" />
 
                 <button
-                    @click="removeImage(idx)"
+                    data-delete-image
+                    @click="handleDeleteImage(idx, $event)"
                     class="top-2 right-2 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md text-sm  group-hover:opacity-100 transition">
-                    Remove
+                    {{ `${idx}` === imageToDelete ? 'Cofnirm ?' : 'Remove' }}
                 </button>
             </div>
         </div>
@@ -272,7 +358,7 @@ const isValidated = (): boolean => {
                 v-model="newTodoText"
                 @keyup.enter="addTodo"
                 type="text"
-                placeholder="Add a todo..."
+                placeholder="Add todo or link"
                 class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 
             <button
