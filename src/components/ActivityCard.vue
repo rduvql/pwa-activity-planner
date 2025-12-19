@@ -286,7 +286,7 @@ onUnmounted(() => {
 
                 <span
                     :class="[
-                        'flex-1 text-sm text-blue-600 underline',
+                        'flex-1 text-sm text-blue-600 underline text-ellipsis overflow-hidden whitespace-nowrap',
                     ]">
                     <a target="_blank" :href="todo.text">{{ getHostName(todo.text) }}</a>
                 </span>
