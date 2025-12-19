@@ -182,7 +182,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="rounded-lg shadow-md p-4 border border-gray-200" :class="{
+    <div class="rounded-lg shadow-md p-4 border border-gray-200 w-full" :class="{
         'bg-yellow-100': isDraft(),
         'bg-green-100': isValidated(),
         'bg-white': !isDraft() && !isValidated(),

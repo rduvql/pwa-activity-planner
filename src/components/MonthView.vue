@@ -24,7 +24,7 @@ const emit = defineEmits<{
       No activities planned for this month
     </div>
 
-    <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div v-else class="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
       <ActivityCard
         v-for="activity in activities"
         :key="activity.id"
