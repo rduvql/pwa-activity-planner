@@ -137,8 +137,9 @@ const isTodoLink = (todoItem: TodoItem): boolean => {
 };
 
 const getHostName = (todoItem: string): string => {
-    let { host } = new URL(todoItem);
-    return host;
+    let url = new URL(todoItem);
+    let { host, pathname } = url;
+    return `${host}${pathname}`;
 };
 
 const getTodos = () => {
