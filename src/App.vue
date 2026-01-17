@@ -4,6 +4,8 @@ import type { Activity, TodoItem } from './types';
 import { saveActivities, loadActivities } from './utils/storage';
 import { getMonthsBetween, isSameMonth } from './utils/dateUtils';
 import MonthView from './components/MonthView.vue';
+import ButtonIcon from './components/ButtonIcon.vue';
+import { mdiCheckCircleOutline, mdiCheckOutline, mdiContentSaveOutline, mdiDownloadOutline, mdiListBoxOutline, mdiPlusCircleMultipleOutline, mdiPlusCircleOutline, mdiPlusOutline, mdiUploadOutline } from '@mdi/js';
 
 const activities = ref<Activity[]>([]);
 const showAddForm = ref(false);
@@ -11,6 +13,7 @@ const newActivityTitle = ref('');
 const newActivityStartDate = ref('');
 const newActivityEndDate = ref('');
 const displayBackupList = ref<string[]>([]);
+const backupIcon = ref(mdiContentSaveOutline);
 
 onMounted(() => {
     activities.value = loadActivities();
@@ -110,11 +113,39 @@ const exportJSON = () => {
     URL.revokeObjectURL(url);
 };
 
+const importJSON = (jsonData: string) => {
+    try {
+        const importedActivities: Activity[] = JSON.parse(jsonData);
+        activities.value = importedActivities;
+        saveActivities(activities.value);
+    } catch (error) {
+        console.error('Invalid JSON data', error);
+    }
+};
+
+const handleFileInput = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            if (e.target?.result) {
+                importJSON(e.target.result as string);
+            }
+        };
+        reader.readAsText(file);
+    }
+};
+
 const createInternalStorageBackup = () => {
     const timestamp = Date.now();
     const backupKey = `bak-${timestamp}`;
     const data = JSON.stringify(activities.value);
     localStorage.setItem(backupKey, data);
+    backupIcon.value = mdiCheckCircleOutline;
+    setTimeout(() => {
+        backupIcon.value = mdiContentSaveOutline;
+    }, 2000);
 };
 
 const getBackupList = () => {
@@ -203,32 +234,52 @@ function localStorageSizeMB() {
                 <p class="text-gray-600">localStorage size ~ {{ localStorageSizeMB() }}</p>
             </header>
 
-            <div class="mb-8">
-                <div class="flex gap-2 flex-wrap">
-                    <button
-                        v-if="!showAddForm"
-                        @click="showAddForm = true"
-                        class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-md transition">
-                        + New Activity
-                    </button>
-
-                    <button
+            <!-- Action Menu -->
+            <div class="mb-8 p-4 bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Backup Actions -->
+                    <ButtonIcon
+                        class="border-blue-600 text-blue-700 bg-blue-50"
                         @click="createInternalStorageBackup"
-                        class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-md transition">
-                        Backup Data
-                    </button>
+                        text="Backup"
+                        :icon="backupIcon">
+                    </ButtonIcon>
 
-                    <button
-                        @click="exportJSON"
-                        class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition">
-                        Export JSON
-                    </button>
-
-                    <button
+                    <ButtonIcon
                         @click="displayBackupList = getBackupList()"
-                        class="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium shadow-md transition">
-                        View Backups ({{ getBackupList().length }})
-                    </button>
+                        class="border-blue-600 text-blue-700 bg-blue-50"
+                        text="Backups"
+                        :icon="mdiListBoxOutline">
+                    </ButtonIcon>
+
+                    <!-- Import/Export -->
+                    <ButtonIcon
+                        @click="exportJSON"
+                        class="border-purple-600 text-purple-700 bg-purple-50"
+                        text="Export"
+                        :icon="mdiUploadOutline">
+                    </ButtonIcon>
+
+                    <ButtonIcon
+                        @click="($refs.fileInput as HTMLInputElement)!.click()"
+                        class="border-purple-600 text-purple-700 bg-purple-50"
+                        text="Import"
+                        :icon="mdiDownloadOutline">
+                    </ButtonIcon>
+                    <input
+                        ref="fileInput"
+                        type="file"
+                        accept="application/json"
+                        class="hidden"
+                        @change="handleFileInput" />
+
+                    <ButtonIcon
+                        v-if="!showAddForm"
+                        class="border-green-600 text-green-700 bg-green-50"
+                        @click="showAddForm = true"
+                        text="Add"
+                        :icon="mdiPlusCircleOutline">
+                    </ButtonIcon>
                 </div>
             </div>
 

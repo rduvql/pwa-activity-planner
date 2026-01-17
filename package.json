@@ -9,6 +9,7 @@
     "copy:dist": "cp -r dist/* ../rduvql.github.io/planner/"
   },
   "dependencies": {
+    "@mdi/js": "^7.4.47",
     "vue": "3.5.25"
   },
   "devDependencies": {
