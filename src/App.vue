@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import type { Activity, TodoItem } from './types';
 import { saveActivities, loadActivities } from './utils/storage';
 import { getMonthsBetween, isSameMonth } from './utils/dateUtils';
@@ -8,7 +8,7 @@ import MonthView from './components/MonthView.vue';
 const activities = ref<Activity[]>([]);
 const showAddForm = ref(false);
 const newActivityTitle = ref('');
-const newActivityDate = ref('');
+const newActivityStartDate = ref('');
 const newActivityEndDate = ref('');
 
 onMounted(() => {
@@ -16,7 +16,7 @@ onMounted(() => {
 
     // Set default date to today if empty
     const today = new Date();
-    newActivityDate.value = today.toISOString().split('T')[0];
+    // newActivityStartDate.value = today.toISOString().split('T')[0];
 });
 
 const months = computed(() => {
@@ -39,7 +39,7 @@ const getActivitiesForMonth = (month: Date): Activity[] => {
 };
 
 const addActivity = () => {
-    if (!newActivityTitle.value.trim() || !newActivityDate.value) return;
+    if (!newActivityTitle.value.trim() || !newActivityStartDate.value) return;
 
     const defaultTodo: TodoItem[] = [{
         id: Date.now().toString(),
@@ -59,8 +59,8 @@ const addActivity = () => {
     const newActivity: Activity = {
         id: Date.now().toString(),
         title: newActivityTitle.value.trim(),
-        dateStart: newActivityDate.value,
-        dateEnd: newActivityEndDate.value || newActivityDate.value,
+        dateStart: newActivityStartDate.value,
+        dateEnd: newActivityEndDate.value || newActivityStartDate.value,
         todos: defaultTodo,
         image: []
     };
@@ -68,10 +68,18 @@ const addActivity = () => {
     activities.value.push(newActivity);
     saveActivities(activities.value);
 
-    newActivityTitle.value = '';
-    newActivityDate.value = new Date().toISOString().split('T')[0];
+    // reset
+    newActivityTitle.value = "";
+    newActivityStartDate.value = "";
+    newActivityEndDate.value = "";
     showAddForm.value = false;
 };
+
+watch(newActivityStartDate, (newDate) => {
+    if (newActivityEndDate.value === "") {
+        newActivityEndDate.value = newActivityStartDate.value;
+    }
+});
 
 const updateActivity = (updatedActivity: Activity) => {
     const index = activities.value.findIndex(a => a.id === updatedActivity.id);
@@ -133,7 +141,7 @@ function localStorageSizeMB() {
                         placeholder="Activity title"
                         class="w-full px-4 py-2 border border-gray-300 rounded-md mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     <input
-                        v-model="newActivityDate"
+                        v-model="newActivityStartDate"
                         type="date"
                         class="w-full px-4 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     <input

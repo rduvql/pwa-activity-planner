@@ -142,8 +142,7 @@ const isTodoLink = (todoItem: TodoItem): boolean => {
 
 const getHostName = (todoItem: string): string => {
     let url = new URL(todoItem);
-    let { host, pathname } = url;
-    return `${host}${pathname}`;
+    return `${url.href.replace(url.protocol+"//", "")}`;
 };
 
 const getTodos = () => {
