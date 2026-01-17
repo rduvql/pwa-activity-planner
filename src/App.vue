@@ -10,6 +10,7 @@ const showAddForm = ref(false);
 const newActivityTitle = ref('');
 const newActivityStartDate = ref('');
 const newActivityEndDate = ref('');
+const displayBackupList = ref<string[]>([]);
 
 onMounted(() => {
     activities.value = loadActivities();
@@ -96,6 +97,50 @@ const deleteActivity = (id: string) => {
     }
 };
 
+const exportJSON = () => {
+    const data = JSON.stringify(activities.value, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `activity-planner-export-${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+const createInternalStorageBackup = () => {
+    const timestamp = Date.now();
+    const backupKey = `bak-${timestamp}`;
+    const data = JSON.stringify(activities.value);
+    localStorage.setItem(backupKey, data);
+};
+
+const getBackupList = () => {
+    return Object.keys(localStorage)
+        .filter(s => s.startsWith("bak-"))
+        .toSorted((a, b) => {
+            let aa = a.replace("bak-", "");
+            let bb = b.replace("bak-", "");
+            return Number(bb) - Number(aa);
+        });
+};
+
+const removeBackupEntry = (key: string) => {
+    localStorage.removeItem(key);
+    displayBackupList.value = getBackupList();
+};
+
+const restoreBackupEntry = (key: string) => {
+    const data = localStorage.getItem(key);
+    if (data) {
+        activities.value = JSON.parse(data);
+        saveActivities(activities.value);
+    }
+    displayBackupList.value = [];
+};
+
 function localStorageSizeMB() {
     let total = 0;
 
@@ -115,7 +160,43 @@ function localStorageSizeMB() {
 </script>
 
 <template>
+    <!-- backup viewer "modal" -->
+    <div v-if="displayBackupList.length > 0"
+        class="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center p-4 z-50"
+        @click="displayBackupList = []">
+
+        <!-- display the backups -->
+        <div
+            @click.stop="() => { /* prevent closing modal on click inside */ }">
+
+            <h2 class="text-2xl font-bold text-white mb-4"> Backups ({{ displayBackupList.length }}) </h2>
+
+            <ul class="space-y-2 max-h-96 overflow-y-auto">
+                <li v-for="backupKey in displayBackupList" :key="backupKey"
+                    class="bg-gray-800 text-white p-4 rounded-lg flex justify-between items-center gap-4">
+                    <span class="">
+                        {{ backupKey }}
+                    </span>
+
+                    <button
+                        @click.stop="() => restoreBackupEntry(backupKey)"
+                        class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium">
+                        Restore
+                    </button>
+
+                    <button
+                        @click.stop="() => removeBackupEntry(backupKey)"
+                        class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium">
+                        Delete
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+    </div>
+
     <div class="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50">
+
         <div class="container mx-auto px-4 py-8 max-w-7xl">
             <header class="mb-8">
                 <h1 class="text-4xl font-bold text-gray-800 mb-2"> Event Planner ({{ activities.length }}) </h1>
@@ -123,15 +204,36 @@ function localStorageSizeMB() {
             </header>
 
             <div class="mb-8">
-                <button
-                    v-if="!showAddForm"
-                    @click="showAddForm = true"
-                    class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-md transition">
-                    + New Activity
-                </button>
+                <div class="flex gap-2 flex-wrap">
+                    <button
+                        v-if="!showAddForm"
+                        @click="showAddForm = true"
+                        class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-md transition">
+                        + New Activity
+                    </button>
 
+                    <button
+                        @click="createInternalStorageBackup"
+                        class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium shadow-md transition">
+                        Backup Data
+                    </button>
+
+                    <button
+                        @click="exportJSON"
+                        class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium shadow-md transition">
+                        Export JSON
+                    </button>
+
+                    <button
+                        @click="displayBackupList = getBackupList()"
+                        class="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium shadow-md transition">
+                        View Backups ({{ getBackupList().length }})
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="showAddForm" class="mb-8">
                 <div
-                    v-else
                     class="bg-white rounded-lg shadow-md p-6 max-w-md border border-gray-200">
                     <h3 class="text-lg font-semibold text-gray-800 mb-4">New Activity</h3>
 
