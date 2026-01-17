@@ -9,6 +9,7 @@ const activities = ref<Activity[]>([]);
 const showAddForm = ref(false);
 const newActivityTitle = ref('');
 const newActivityDate = ref('');
+const newActivityEndDate = ref('');
 
 onMounted(() => {
     activities.value = loadActivities();
@@ -24,7 +25,7 @@ const months = computed(() => {
         return [new Date()];
     }
 
-    const dates = activities.value.map(a => new Date(a.date));
+    const dates = activities.value.map(a => new Date(a.dateStart));
     const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
 
@@ -33,8 +34,8 @@ const months = computed(() => {
 
 const getActivitiesForMonth = (month: Date): Activity[] => {
     return activities.value
-        .filter(activity => isSameMonth(new Date(activity.date), month))
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        .filter(activity => isSameMonth(new Date(activity.dateStart), month))
+        .sort((a, b) => new Date(a.dateStart).getTime() - new Date(b.dateStart).getTime());
 };
 
 const addActivity = () => {
@@ -58,7 +59,8 @@ const addActivity = () => {
     const newActivity: Activity = {
         id: Date.now().toString(),
         title: newActivityTitle.value.trim(),
-        date: newActivityDate.value,
+        dateStart: newActivityDate.value,
+        dateEnd: newActivityEndDate.value || newActivityDate.value,
         todos: defaultTodo,
         image: []
     };
@@ -134,6 +136,11 @@ function localStorageSizeMB() {
                         v-model="newActivityDate"
                         type="date"
                         class="w-full px-4 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input
+                        v-model="newActivityEndDate"
+                        type="date"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+
                     <div class="flex gap-3">
                         <button
                             @click="addActivity"

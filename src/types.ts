@@ -7,7 +7,8 @@ export interface TodoItem {
 export interface Activity {
     id: string;
     title: string;
-    date: string;
+    dateStart: string;
+    dateEnd: string;
     todos: TodoItem[];
     image: string[];
 }
