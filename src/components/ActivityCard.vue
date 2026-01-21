@@ -22,6 +22,7 @@ const editStartDate = ref(props.activity.dateStart);
 const editEndDate = ref(props.activity.dateEnd);
 const todoToDelete = ref<string | null>(null);
 const imageToDelete = ref<string | null>(null);
+const confirmDelete = ref(false);
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const imagePreview = ref<string[]>(props.activity.image || []);
@@ -114,6 +115,18 @@ const toggleTodo = (todoId: string) => {
             todo.id === todoId ? { ...todo, completed: !todo.completed } : todo
         )
     });
+};
+
+const handleDeleteActivity = (event: MouseEvent) => {
+    console.log("handleDeleteActivity");
+    event.stopPropagation();
+
+    if (confirmDelete.value) {
+        emit('delete', props.activity.id);
+        confirmDelete.value = false;
+    } else {
+        confirmDelete.value = true;
+    }
 };
 
 const handleDeleteTodo = (todoId: string, event: MouseEvent) => {
@@ -209,6 +222,9 @@ const handleClickOutside = (event: MouseEvent) => {
     if (!target.closest("button[data-delete-image]")) {
         imageToDelete.value = null;
     }
+    if (!target.closest("button[data-delete-activity]")) {
+        confirmDelete.value = false;
+    }
 };
 
 const getConflictingActivities = (activity: Activity): Activity[] => {
@@ -223,6 +239,14 @@ const getConflictingActivities = (activity: Activity): Activity[] => {
 
         return (aStart <= endDate) && (aEnd >= startDate);
     });
+};
+
+const daysFromNow = (date: number | string | Date): string => {
+    const dateObj = new Date(date);
+    const now = new Date();
+    const diffTime = dateObj.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays.toString();
 };
 
 onMounted(() => {
@@ -261,10 +285,10 @@ onUnmounted(() => {
                     class="text-blue-600 hover:text-blue-700 text-md font-medium">
                     Edit
                 </button>
-                <button
-                    @click="emit('delete', activity.id)"
+                <button data-delete-activity
+                    @click="handleDeleteActivity($event)"
                     class="text-red-600 hover:text-red-700 text-md font-medium">
-                    Delete
+                    {{ confirmDelete ? 'Confirm ?' : 'Delete' }}
                 </button>
             </div>
 
@@ -282,6 +306,8 @@ onUnmounted(() => {
                 :href="googleCalendarLink({ fromstr: activity.dateStart, tostr: activity.dateEnd, title: activity.title })">
                 {{ formatDate(activity.dateStart) }} - {{ formatDate(activity.dateEnd) }}
             </a>
+
+            <span> [In {{ daysFromNow(props.activity.dateStart) }} days] </span>
         </div>
 
         <div v-if="isEditing" class="mb-3">

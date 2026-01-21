@@ -152,10 +152,8 @@ const updateActivity = (updatedActivity: Activity) => {
 };
 
 const deleteActivity = (id: string) => {
-    if (confirm('confirm ?')) {
-        activities.value = activities.value.filter(a => a.id !== id);
-        localStorageUtils.saveActivities(activities.value);
-    }
+    activities.value = activities.value.filter(a => a.id !== id);
+    localStorageUtils.saveActivities(activities.value);
 };
 
 const BACKUP_LIST_ACTIONS = {
