@@ -142,7 +142,7 @@ const isTodoLink = (todoItem: TodoItem): boolean => {
 
 const getHostName = (todoItem: string): string => {
     let url = new URL(todoItem);
-    return `${url.href.replace(url.protocol+"//", "")}`;
+    return `${url.href.replace(url.protocol + "//", "")}`;
 };
 
 const getTodos = () => {
@@ -185,7 +185,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="rounded-lg shadow-md p-4 border border-gray-200 w-full" :class="{
+    <div :class="{
+        'rounded-lg shadow-md p-4 border border-gray-200 w-full': true,
         'bg-yellow-100': isDraft(),
         'bg-green-100': isValidated(),
         'bg-white': !isDraft() && !isValidated(),
@@ -244,11 +245,11 @@ onUnmounted(() => {
             </div>
         </div>
 
-        <div v-if="!isDraft()">
+        <div>
             <!--               -->
             <!-- checkbox list -->
             <!--               -->
-            <div class="space-y-2 mb-3">
+            <div v-if="!isDraft()" class="space-y-2 mb-3">
                 <div v-for="todo in getTodos()"
                     :key="todo.id"
                     :class="[
