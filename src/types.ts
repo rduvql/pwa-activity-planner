@@ -11,4 +11,5 @@ export interface Activity {
     dateEnd: string;
     todos: TodoItem[];
     image: string[];
+    color: string;
 }

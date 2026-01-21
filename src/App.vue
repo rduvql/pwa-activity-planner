@@ -129,7 +129,8 @@ const addActivitySubmit = () => {
         dateStart: newActivityStartDate.value,
         dateEnd: newActivityEndDate.value || newActivityStartDate.value,
         todos: defaultTodo,
-        image: []
+        image: [],
+        color: "white"
     };
 
     activities.value.push(newActivity);

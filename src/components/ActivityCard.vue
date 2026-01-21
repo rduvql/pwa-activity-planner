@@ -3,6 +3,8 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import type { Activity, TodoItem } from '../types';
 import { formatDate } from '../utils/dateUtils';
 import { googleCalendarLink } from '../utils/utils';
+import { localStorageUtils } from '../utils/storage.utils';
+import { mdiAlert } from '@mdi/js';
 
 const props = defineProps<{
     activity: Activity;
@@ -24,6 +26,40 @@ const imageToDelete = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 const imagePreview = ref<string[]>(props.activity.image || []);
 const imageZoom = ref<string | undefined>(undefined);
+
+const colors = {
+    "white": {
+        bg: 'bg-white',
+        btn: 'bg-white-300'
+    },
+    'blue': {
+        bg: 'bg-blue-100',
+        btn: 'bg-blue-300'
+    },
+    'green': {
+        bg: 'bg-green-100',
+        btn: 'bg-green-300'
+    },
+    'yellow': {
+        bg: 'bg-yellow-100',
+        btn: 'bg-yellow-300'
+    },
+    'red': {
+        bg: 'bg-red-100',
+        btn: 'bg-red-300'
+    }
+};
+const colorIndex = ref<keyof typeof colors>(props.activity.color as any || "white");
+
+const cycleColor = () => {
+    const colorKeys = Object.keys(colors) as (keyof typeof colors)[];
+    const currentIndex = colorKeys.indexOf(colorIndex.value);
+    colorIndex.value = colorKeys[((currentIndex + 1) % colorKeys.length)];
+    emit('update', {
+        ...props.activity,
+        color: colorIndex.value
+    });
+};
 
 const handleImageUpload = (event: Event) => {
     const target = event.target as HTMLInputElement;
@@ -175,6 +211,20 @@ const handleClickOutside = (event: MouseEvent) => {
     }
 };
 
+const getConflictingActivities = (activity: Activity): Activity[] => {
+    const startDate = new Date(activity.dateStart);
+    const endDate = new Date(activity.dateEnd);
+
+    return localStorageUtils.loadActivities().filter(a => {
+        if (a.id === activity.id) return false; // skip self
+
+        const aStart = new Date(a.dateStart);
+        const aEnd = new Date(a.dateEnd);
+
+        return (aStart <= endDate) && (aEnd >= startDate);
+    });
+};
+
 onMounted(() => {
     document.addEventListener('click', handleClickOutside);
 });
@@ -185,23 +235,26 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div :class="{
-        'rounded-lg shadow-md p-4 border border-gray-200 w-full': true,
-        'bg-yellow-100': isDraft(),
-        'bg-green-100': isValidated(),
-        'bg-white': !isDraft() && !isValidated(),
-    }">
-        <div v-if="!isEditing" class="flex items-start justify-between mb-3">
+    <div :class="['rounded-lg shadow-md p-4 border border-gray-200 w-full', colors[colorIndex].bg]">
+
+        <div v-if="!isEditing" class="flex items-start justify-between mb-2">
+
             <div class="flex-1">
-                <h3 class="text-lg font-semibold mb-2">{{ activity.title }}</h3>
-                <p class="text-md">
-                    <a target="_blank"
-                        class="text-blue-500 underline"
-                        :href="googleCalendarLink({ fromstr: activity.dateStart, tostr: activity.dateEnd, title: activity.title })">
-                        {{ formatDate(activity.dateStart) }} - {{ formatDate(activity.dateEnd) }}
-                    </a>
-                </p>
+                <div class="flex items-center gap-2 mb-2">
+                    <button
+                        @click="cycleColor"
+                        :class="['w-8 h-8 rounded border border-gray-300', colors[colorIndex].btn]"
+                        title="Cycle color">
+                    </button>
+
+                    <h3 class="text-lg font-semibold">
+                        {{ activity.title }}
+                    </h3>
+                </div>
+
             </div>
+
+            <!-- BUTTONS -->
             <div class="flex gap-8">
                 <button
                     @click="isEditing = true"
@@ -214,8 +267,24 @@ onUnmounted(() => {
                     Delete
                 </button>
             </div>
+
         </div>
-        <div v-else class="mb-3">
+
+        <!-- DATE -->
+        <div class="flex items-center gap-2 text-md mb-4">
+            <svg v-if="getConflictingActivities(props.activity).length > 0"
+                class="w-[1.5em] h-[1.5em] flex-shrink-0" viewBox="0 0 24 24">
+                <path :d="mdiAlert" />
+            </svg>
+
+            <a target="_blank"
+                class="text-blue-500 underline"
+                :href="googleCalendarLink({ fromstr: activity.dateStart, tostr: activity.dateEnd, title: activity.title })">
+                {{ formatDate(activity.dateStart) }} - {{ formatDate(activity.dateEnd) }}
+            </a>
+        </div>
+
+        <div v-if="isEditing" class="mb-3">
             <input
                 v-model="editTitle"
                 type="text"
