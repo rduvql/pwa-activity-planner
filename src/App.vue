@@ -1,41 +1,56 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
-import type { Activity, TodoItem } from './types';
-import { getMonthsBetween, isSameMonth } from './utils/dateUtils';
-import MonthView from './components/MonthView.vue';
+import { mdiCheckCircleOutline, mdiContentSaveOutline, mdiDownloadOutline, mdiListBoxOutline, mdiPlusCircleOutline, mdiUploadOutline } from '@mdi/js';
+import { useLocalStorage } from '@vueuse/core';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import ButtonIcon from './components/ButtonIcon.vue';
-import { mdiCheckCircleOutline, mdiCheckOutline, mdiContentSaveOutline, mdiDownloadOutline, mdiListBoxOutline, mdiPlusCircleMultipleOutline, mdiPlusCircleOutline, mdiPlusOutline, mdiUploadOutline } from '@mdi/js';
-import { localStorageUtils } from './utils/storage.utils';
+import MonthView from './components/MonthView.vue';
+import type { Activity, ActivityTodoItem, BackupEntry } from './types';
+import { getMonthsBetween, isSameMonth } from './utils/dateUtils';
+import { ACTIVITIES_STORAGE_KEY, BACKUPS_STORAGE_KEY, formatDate, getLocalStorageSizeMB, OLD_ACTIVITIES_KEY } from './utils/storage.utils';
+import { createDownloadLink } from './utils/utils';
 
-const activities = ref<Activity[]>([]);
-const showAddForm = ref(false);
-const newActivityTitle = ref('');
-const newActivityStartDate = ref('');
-const newActivityEndDate = ref('');
-const displayedBackupList = ref<string[]>([]);
+const activities$ = useLocalStorage<Activity[]>(ACTIVITIES_STORAGE_KEY, []);
+const backups$ = useLocalStorage<BackupEntry[]>(BACKUPS_STORAGE_KEY, []);
+
+const newActivityState = reactive({
+    showAddForm: false,
+    title: '',
+    startDate: '',
+    endDate: ''
+});
+
+const displayedBackupList = ref<boolean>(false);
 const backupIcon = ref(mdiContentSaveOutline);
 
-const months = computed(() => {
-    if (activities.value.length === 0) {
+const monthList = computed(() => {
+    if (activities$.value.length === 0) {
         // Show current month if no activities
         return [new Date()];
     }
 
-    const dates = activities.value.map(a => new Date(a.dateStart));
+    const dates = activities$.value.map(a => new Date(a.dateStart));
     const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
 
     return getMonthsBetween(minDate, maxDate);
 });
 
-watch(newActivityStartDate, (newDate) => {
-    if (newActivityEndDate.value === "") {
-        newActivityEndDate.value = newActivityStartDate.value;
+const backupsList = computed(() => {
+    return backups$.value.toSorted((a, b) => b.timestamp - a.timestamp);
+});
+
+watch(() => newActivityState.startDate, (newDate) => {
+    if (newActivityState.endDate === "") {
+        newActivityState.endDate = newActivityState.startDate;
     }
 });
 
 onMounted(() => {
-    activities.value = localStorageUtils.loadActivities();
+    let data: Activity[] = JSON.parse(localStorage.getItem(OLD_ACTIVITIES_KEY) || "[]");
+    if (data.length > 0) {
+        activities$.value = data;
+        localStorage.removeItem(OLD_ACTIVITIES_KEY);
+    }
 });
 
 //
@@ -46,35 +61,32 @@ const MAIN_BUTTON_ACTIONS = {
 
     createBackupEntry: () => {
         backupIcon.value = mdiCheckCircleOutline;
-        localStorageUtils.createBackupEntry();
+
+        backups$.value.push({
+            timestamp: Date.now(),
+            name: `${formatDate(new Date())} [${activities$.value.length}]`,
+            activities: JSON.parse(JSON.stringify(activities$.value))
+        });
+
         setTimeout(() => {
             backupIcon.value = mdiContentSaveOutline;
         }, 2000);
     },
 
     displayBackupList: () => {
-        displayedBackupList.value = localStorageUtils.listBackupEntries();
+        displayedBackupList.value = true;
     },
 
     exportJSON: () => {
-        const data = JSON.stringify(activities.value, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `activity-planner-export-${Date.now()}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        const data = JSON.stringify(activities$.value, null, 2);
+        createDownloadLink(data, `activity-planner-export-${Date.now()}.json`, 'application/json');
     },
 
     importJSON: (event: Event) => {
         const save = (jsonData: string) => {
             try {
                 const importedActivities: Activity[] = JSON.parse(jsonData);
-                activities.value = importedActivities;
-                localStorageUtils.saveActivities(activities.value);
+                activities$.value = importedActivities;
             } catch (error) {
                 console.error('Invalid JSON data', error);
             }
@@ -94,21 +106,36 @@ const MAIN_BUTTON_ACTIONS = {
     },
 
     addActivity: () => {
-        showAddForm.value = true;
+        newActivityState.showAddForm = true;
     }
 };
 
+const BACKUP_LIST_ACTIONS = {
+
+    restoreBackupEntry: (key: number) => {
+        activities$.value = backups$.value.find(b => b.timestamp === key)?.activities || [];
+        displayedBackupList.value = false;
+    },
+
+    removeBackupEntry: (key: number) => {
+        backups$.value = backups$.value.filter(b => b.timestamp !== key);
+    },
+};
+
+//
+//
+//
 
 const getActivitiesListForMonth = (month: Date): Activity[] => {
-    return activities.value
+    return activities$.value
         .filter(activity => isSameMonth(new Date(activity.dateStart), month))
         .sort((a, b) => new Date(a.dateStart).getTime() - new Date(b.dateStart).getTime());
 };
 
 const addActivitySubmit = () => {
-    if (!newActivityTitle.value.trim() || !newActivityStartDate.value) return;
+    if (!newActivityState.title.trim() || !newActivityState.startDate) return;
 
-    const defaultTodo: TodoItem[] = [{
+    const defaultTodo: ActivityTodoItem[] = [{
         id: Date.now().toString(),
         text: "Ticket event",
         completed: false
@@ -125,79 +152,62 @@ const addActivitySubmit = () => {
 
     const newActivity: Activity = {
         id: Date.now().toString(),
-        title: newActivityTitle.value.trim(),
-        dateStart: newActivityStartDate.value,
-        dateEnd: newActivityEndDate.value || newActivityStartDate.value,
+        title: newActivityState.title.trim(),
+        dateStart: newActivityState.startDate,
+        dateEnd: newActivityState.endDate || newActivityState.startDate,
         todos: defaultTodo,
         image: [],
         color: "white"
     };
 
-    activities.value.push(newActivity);
-    localStorageUtils.saveActivities(activities.value);
+    activities$.value.push(newActivity);
 
     // reset
-    newActivityTitle.value = "";
-    newActivityStartDate.value = "";
-    newActivityEndDate.value = "";
-    showAddForm.value = false;
+    newActivityState.title = "";
+    newActivityState.startDate = "";
+    newActivityState.endDate = "";
+    newActivityState.showAddForm = false;
 };
 
 const updateActivity = (updatedActivity: Activity) => {
-    const index = activities.value.findIndex(a => a.id === updatedActivity.id);
+    const index = activities$.value.findIndex(a => a.id === updatedActivity.id);
     if (index !== -1) {
-        activities.value[index] = updatedActivity;
-        localStorageUtils.saveActivities(activities.value);
+        activities$.value[index] = updatedActivity;
     }
 };
 
 const deleteActivity = (id: string) => {
-    activities.value = activities.value.filter(a => a.id !== id);
-    localStorageUtils.saveActivities(activities.value);
-};
-
-const BACKUP_LIST_ACTIONS = {
-
-    restoreBackupEntry: (key: string) => {
-        localStorageUtils.restoreBackupEntry(key);
-        displayedBackupList.value = [];
-        activities.value = localStorageUtils.loadActivities();
-    },
-
-    removeBackupEntry: (key: string) => {
-        localStorageUtils.removeBackupEntry(key);
-        displayedBackupList.value = localStorageUtils.listBackupEntries();
-    },
+    activities$.value = activities$.value.filter(a => a.id !== id);
 };
 </script>
 
 <template>
     <!-- backup viewer "modal" -->
-    <div v-if="displayedBackupList.length > 0"
+    <div v-if="displayedBackupList"
         class="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center p-4 z-50"
-        @click="displayedBackupList = []">
+        @click="displayedBackupList = false">
 
         <!-- display the backups -->
         <div
             @click.stop="() => { /* prevent closing modal on click inside */ }">
 
-            <h2 class="text-2xl font-bold text-white mb-4"> Backups ({{ displayedBackupList.length }}) </h2>
+            <h2 class="text-2xl font-bold text-white mb-4"> Backups ({{ backups$.length }}) </h2>
 
             <ul class="space-y-2 max-h-96 overflow-y-auto">
-                <li v-for="backupKey in displayedBackupList" :key="backupKey"
+                <li v-for="backupKey in backupsList" :key="backupKey.timestamp"
                     class="bg-gray-800 text-white p-4 rounded-lg flex justify-between items-center gap-4">
                     <span class="">
-                        {{ backupKey }}
+                        {{ backupKey.name }}
                     </span>
 
                     <button
-                        @click.stop="() => BACKUP_LIST_ACTIONS.restoreBackupEntry(backupKey)"
+                        @click.stop="() => BACKUP_LIST_ACTIONS.restoreBackupEntry(backupKey.timestamp)"
                         class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium">
                         Restore
                     </button>
 
                     <button
-                        @click.stop="() => BACKUP_LIST_ACTIONS.removeBackupEntry(backupKey)"
+                        @click.stop="() => BACKUP_LIST_ACTIONS.removeBackupEntry(backupKey.timestamp)"
                         class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 font-medium">
                         Delete
                     </button>
@@ -210,8 +220,8 @@ const BACKUP_LIST_ACTIONS = {
 
         <div class="container mx-auto px-4 py-8 max-w-7xl">
             <header class="mb-8">
-                <h1 class="text-4xl font-bold text-gray-800 mb-2"> Event Planner ({{ activities.length }}) </h1>
-                <p class="text-gray-600">localStorage size ~ {{ localStorageUtils.getLocalStorageSizeMB() }}</p>
+                <h1 class="text-4xl font-bold text-gray-800 mb-2"> Event Planner ({{ activities$.length }}) </h1>
+                <p class="text-gray-600">localStorage size ~ {{ getLocalStorageSizeMB() }}</p>
             </header>
 
             <!-- Action Menu -->
@@ -250,7 +260,7 @@ const BACKUP_LIST_ACTIONS = {
 
                     <!-- Add Activity -->
                     <ButtonIcon
-                        v-if="!showAddForm"
+                        v-if="!newActivityState.showAddForm"
                         class="border-green-600 text-green-700 bg-green-50"
                         @click="MAIN_BUTTON_ACTIONS.addActivity()"
                         text="Add"
@@ -259,22 +269,22 @@ const BACKUP_LIST_ACTIONS = {
                 </div>
             </div>
 
-            <div v-if="showAddForm" class="mb-8">
+            <div v-if="newActivityState.showAddForm" class="mb-8">
                 <div
                     class="bg-white rounded-lg shadow-md p-6 max-w-md border border-gray-200">
                     <h3 class="text-lg font-semibold text-gray-800 mb-4">New Activity</h3>
 
                     <input
-                        v-model="newActivityTitle"
+                        v-model="newActivityState.title"
                         type="text"
                         placeholder="Activity title"
                         class="w-full px-4 py-2 border border-gray-300 rounded-md mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     <input
-                        v-model="newActivityStartDate"
+                        v-model="newActivityState.startDate"
                         type="date"
                         class="w-full px-4 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     <input
-                        v-model="newActivityEndDate"
+                        v-model="newActivityState.endDate"
                         type="date"
                         class="w-full px-4 py-2 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 
@@ -285,7 +295,7 @@ const BACKUP_LIST_ACTIONS = {
                             Create
                         </button>
                         <button
-                            @click="showAddForm = false"
+                            @click="() => newActivityState.showAddForm = false"
                             class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 font-medium">
                             Cancel
                         </button>
@@ -295,7 +305,7 @@ const BACKUP_LIST_ACTIONS = {
 
             <div class="space-y-8">
                 <MonthView
-                    v-for="month in months"
+                    v-for="month in monthList"
                     :key="month.toISOString()"
                     :month="month"
                     :activities="getActivitiesListForMonth(month)"

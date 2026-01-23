@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
-import type { Activity, TodoItem } from '../types';
-import { formatDate } from '../utils/dateUtils';
-import { googleCalendarLink } from '../utils/utils';
-import { localStorageUtils } from '../utils/storage.utils';
 import { mdiAlert } from '@mdi/js';
+import { onMounted, onUnmounted, ref } from 'vue';
+import type { Activity, ActivityTodoItem } from '../types';
+import { formatDate } from '../utils/dateUtils';
+import { googleCalendarLink, safeParseUrl } from '../utils/utils';
+import { ACTIVITIES_STORAGE_KEY } from '../utils/storage.utils';
 
 const props = defineProps<{
     activity: Activity;
@@ -94,7 +94,7 @@ const triggerFileInput = () => {
 const addTodo = () => {
     if (!newTodoText.value.trim()) return;
 
-    const newTodo: TodoItem = {
+    const newTodo: ActivityTodoItem = {
         id: Date.now().toString(),
         text: newTodoText.value.trim(),
         completed: false
@@ -185,13 +185,17 @@ const cancelEdit = () => {
     isEditing.value = false;
 };
 
-const isTodoLink = (todoItem: TodoItem): boolean => {
+const isTodoLink = (todoItem: ActivityTodoItem): boolean => {
     return todoItem.text.startsWith("http");
 };
 
 const getHostName = (todoItem: string): string => {
-    let url = new URL(todoItem);
-    return `${url.href.replace(url.protocol + "//", "")}`;
+    let url = safeParseUrl(todoItem);
+    if (url) {
+        return `${url.href.replace(url.protocol + "//", "")}`;
+    } else {
+        return "ERR_URL";
+    }
 };
 
 const getTodos = () => {
@@ -231,7 +235,7 @@ const getConflictingActivities = (activity: Activity): Activity[] => {
     const startDate = new Date(activity.dateStart);
     const endDate = new Date(activity.dateEnd);
 
-    return localStorageUtils.loadActivities().filter(a => {
+    return (JSON.parse(localStorage.getItem(ACTIVITIES_STORAGE_KEY) || '[]') as Activity[]).filter(a => {
         if (a.id === activity.id) return false; // skip self
 
         const aStart = new Date(a.dateStart);
@@ -344,7 +348,7 @@ onUnmounted(() => {
             <!--               -->
             <!-- checkbox list -->
             <!--               -->
-            <div v-if="!isDraft()" class="space-y-2 mb-3">
+            <div v-if="!isDraft() && !isValidated()" class="space-y-2 mb-3">
                 <div v-for="todo in getTodos()"
                     :key="todo.id"
                     :class="[
