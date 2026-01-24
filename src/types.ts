@@ -3,17 +3,23 @@ export interface Activity {
     title: string;
     dateStart: string;
     dateEnd: string;
-    todos: ActivityTodoItem[];
+
+    tasks: ActivityTaskItem[];
+    links: ActivityLinkItem[];
+
     image: string[];
     color: string;
 }
 
-export interface ActivityTodoItem {
+export interface ActivityTaskItem {
     id: string;
     text: string;
     completed: boolean;
 }
-
+export interface ActivityLinkItem {
+    id: string;
+    url: string;
+}
 
 export interface BackupEntry {
     timestamp: number;

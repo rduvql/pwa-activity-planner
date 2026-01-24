@@ -1,34 +1,12 @@
 <script setup lang="ts">
 import { mdiAlert } from '@mdi/js';
-import { onMounted, onUnmounted, ref } from 'vue';
-import type { Activity, ActivityTodoItem } from '../types';
+import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import type { Activity, ActivityLinkItem, ActivityTaskItem } from '../types';
 import { formatDate } from '../utils/dateUtils';
-import { googleCalendarLink, safeParseUrl } from '../utils/utils';
 import { ACTIVITIES_STORAGE_KEY } from '../utils/storage.utils';
+import { googleCalendarLink, safeParseUrl } from '../utils/utils';
 
-const props = defineProps<{
-    activity: Activity;
-}>();
-
-const emit = defineEmits<{
-    update: [activity: Activity];
-    delete: [id: string];
-}>();
-
-const newTodoText = ref('');
-const isEditing = ref(false);
-const editTitle = ref(props.activity.title);
-const editStartDate = ref(props.activity.dateStart);
-const editEndDate = ref(props.activity.dateEnd);
-const todoToDelete = ref<string | null>(null);
-const imageToDelete = ref<string | null>(null);
-const confirmDelete = ref(false);
-
-const fileInput = ref<HTMLInputElement | null>(null);
-const imagePreview = ref<string[]>(props.activity.image || []);
-const imageZoom = ref<string | undefined>(undefined);
-
-const colors = {
+const COLORS_CLASS_MAPPING = {
     "white": {
         bg: 'bg-white',
         btn: 'bg-white-300'
@@ -50,10 +28,53 @@ const colors = {
         btn: 'bg-red-300'
     }
 };
-const colorIndex = ref<keyof typeof colors>(props.activity.color as any || "white");
+
+//
+//
+//
+
+const props = defineProps<{
+    activity: Activity;
+}>();
+
+const emit = defineEmits<{
+    update: [activity: Activity];
+    delete: [id: string];
+}>();
+
+const state$ = reactive({
+    newEntry: "",
+    isEditing: false,
+    editTitle: props.activity.title,
+    editStartDate: props.activity.dateStart,
+    editEndDate: props.activity.dateEnd,
+
+});
+
+const taskToDelete = ref<string | null>(null);
+const imageToDelete = ref<string | null>(null);
+const confirmDelete = ref(false);
+
+const fileInput = ref<HTMLInputElement | null>(null);
+const imagePreview = ref<string[]>(props.activity.image || []);
+const imageZoom = ref<string | undefined>(undefined);
+
+onMounted(() => {
+    document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
+});
+
+//
+//
+//
+
+const colorIndex = ref<keyof typeof COLORS_CLASS_MAPPING>(props.activity.color as any || "white");
 
 const cycleColor = () => {
-    const colorKeys = Object.keys(colors) as (keyof typeof colors)[];
+    const colorKeys = Object.keys(COLORS_CLASS_MAPPING) as (keyof typeof COLORS_CLASS_MAPPING)[];
     const currentIndex = colorKeys.indexOf(colorIndex.value);
     colorIndex.value = colorKeys[((currentIndex + 1) % colorKeys.length)];
     emit('update', {
@@ -87,32 +108,43 @@ const handleImageUpload = (event: Event) => {
     reader.readAsDataURL(file);
 };
 
-const triggerFileInput = () => {
-    fileInput.value?.click();
+const addTaskOrLink = () => {
+    if (state$.newEntry.trim() === "") return;
+
+    const isLink = state$.newEntry.startsWith("http");
+
+    if (isLink) {
+        const newLink: ActivityLinkItem = {
+            id: Date.now().toString(),
+            url: state$.newEntry.trim(),
+        };
+
+        emit('update', {
+            ...props.activity,
+            links: [...props.activity.links, newLink]
+        });
+
+    } else {
+        const newTask: ActivityTaskItem = {
+            id: Date.now().toString(),
+            text: state$.newEntry.trim(),
+            completed: false
+        };
+
+        emit('update', {
+            ...props.activity,
+            tasks: [...props.activity.tasks, newTask]
+        });
+    }
+
+    state$.newEntry = '';
 };
 
-const addTodo = () => {
-    if (!newTodoText.value.trim()) return;
-
-    const newTodo: ActivityTodoItem = {
-        id: Date.now().toString(),
-        text: newTodoText.value.trim(),
-        completed: false
-    };
-
+const toggleTaskCheckbox = (taskId: string) => {
     emit('update', {
         ...props.activity,
-        todos: [...props.activity.todos, newTodo]
-    });
-
-    newTodoText.value = '';
-};
-
-const toggleTodo = (todoId: string) => {
-    emit('update', {
-        ...props.activity,
-        todos: props.activity.todos.map(todo =>
-            todo.id === todoId ? { ...todo, completed: !todo.completed } : todo
+        tasks: props.activity.tasks.map(task =>
+            task.id === taskId ? { ...task, completed: !task.completed } : task
         )
     });
 };
@@ -129,18 +161,33 @@ const handleDeleteActivity = (event: MouseEvent) => {
     }
 };
 
-const handleDeleteTodo = (todoId: string, event: MouseEvent) => {
-    console.log("handleDeleteTodo");
+const handleDeleteTask = (id: string, event: MouseEvent) => {
+    console.log("handleDeleteTask");
     event.stopPropagation();
 
-    if (todoToDelete.value === todoId) {
+    if (taskToDelete.value === id) {
         emit('update', {
             ...props.activity,
-            todos: props.activity.todos.filter(todo => todo.id !== todoId)
+            tasks: props.activity.tasks.filter(task => task.id !== id)
         });
-        todoToDelete.value = null;
+        taskToDelete.value = null;
     } else {
-        todoToDelete.value = todoId;
+        taskToDelete.value = id;
+    }
+};
+
+const handleDeleteLink = (id: string, event: MouseEvent) => {
+    console.log("handleDeleteLink");
+    event.stopPropagation();
+
+    if (taskToDelete.value === id) {
+        emit('update', {
+            ...props.activity,
+            links: props.activity.links.filter(link => link.id !== id)
+        });
+        taskToDelete.value = null;
+    } else {
+        taskToDelete.value = id;
     }
 };
 
@@ -166,31 +213,28 @@ const handleDeleteImage = (index: number, event: MouseEvent) => {
 };
 
 const saveEdit = () => {
-    if (!editTitle.value.trim()) return;
+    if (!state$.editTitle.trim()) return;
 
     emit('update', {
         ...props.activity,
-        title: editTitle.value.trim(),
-        dateStart: editStartDate.value,
-        dateEnd: editEndDate.value
+        title: state$.editTitle.trim(),
+        dateStart: state$.editStartDate,
+        dateEnd: state$.editEndDate
     });
 
-    isEditing.value = false;
+    state$.isEditing = false;
 };
 
 const cancelEdit = () => {
-    editTitle.value = props.activity.title;
-    editStartDate.value = props.activity.dateStart;
-    editEndDate.value = props.activity.dateEnd;
-    isEditing.value = false;
+    state$.editTitle = props.activity.title;
+    state$.editStartDate = props.activity.dateStart;
+    state$.editEndDate = props.activity.dateEnd;
+    state$.isEditing = false;
 };
 
-const isTodoLink = (todoItem: ActivityTodoItem): boolean => {
-    return todoItem.text.startsWith("http");
-};
 
-const getHostName = (todoItem: string): string => {
-    let url = safeParseUrl(todoItem);
+const formatLink = (link: string): string => {
+    let url = safeParseUrl(link);
     if (url) {
         return `${url.href.replace(url.protocol + "//", "")}`;
     } else {
@@ -198,15 +242,6 @@ const getHostName = (todoItem: string): string => {
     }
 };
 
-const getTodos = () => {
-    return props.activity.todos
-        .filter(todo => !isTodoLink(todo));
-};
-
-const getTodosLink = () => {
-    return props.activity.todos
-        .filter(todo => isTodoLink(todo));
-};
 
 const isDraft = (): boolean => {
     return props.activity.title.includes("wip") || props.activity.title.includes("draft");
@@ -220,8 +255,8 @@ const handleClickOutside = (event: MouseEvent) => {
     // console.log(event);
     const target = event.target as HTMLElement;
     // Check if click is not on a trash icon button
-    if (!target.closest('button[data-delete-todo]')) {
-        todoToDelete.value = null;
+    if (!target.closest('button[data-delete-task]')) {
+        taskToDelete.value = null;
     }
     if (!target.closest("button[data-delete-image]")) {
         imageToDelete.value = null;
@@ -253,25 +288,18 @@ const daysFromNow = (date: number | string | Date): string => {
     return diffDays.toString();
 };
 
-onMounted(() => {
-    document.addEventListener('click', handleClickOutside);
-});
-
-onUnmounted(() => {
-    document.removeEventListener('click', handleClickOutside);
-});
 </script>
 
 <template>
-    <div :class="['rounded-lg shadow-md p-4 border border-gray-200 w-full', colors[colorIndex].bg]">
+    <div :class="['rounded-lg shadow-md p-4 border border-gray-200 w-full', COLORS_CLASS_MAPPING[colorIndex].bg]">
 
-        <div v-if="!isEditing" class="flex items-start justify-between mb-2">
+        <div v-if="!state$.isEditing" class="flex items-start justify-between mb-2">
 
             <div class="flex-1">
                 <div class="flex items-center gap-2 mb-2">
                     <button
                         @click="cycleColor"
-                        :class="['w-8 h-8 rounded border border-gray-300', colors[colorIndex].btn]"
+                        :class="['w-8 h-8 rounded border border-gray-300', COLORS_CLASS_MAPPING[colorIndex].btn]"
                         title="Cycle color">
                     </button>
 
@@ -284,8 +312,8 @@ onUnmounted(() => {
 
             <!-- BUTTONS -->
             <div class="flex gap-8">
-                <button
-                    @click="isEditing = true"
+                <button data-delete-task
+                    @click="state$.isEditing = true"
                     class="text-blue-600 hover:text-blue-700 text-md font-medium">
                     Edit
                 </button>
@@ -314,19 +342,19 @@ onUnmounted(() => {
             <span> [In {{ daysFromNow(props.activity.dateStart) }} days] </span>
         </div>
 
-        <div v-if="isEditing" class="mb-3">
+        <div v-if="state$.isEditing" class="mb-3">
             <input
-                v-model="editTitle"
+                v-model="state$.editTitle"
                 type="text"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 placeholder="Activity title"
                 @keypress.enter="saveEdit" />
             <input
-                v-model="editStartDate"
+                v-model="state$.editStartDate"
                 type="date"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             <input
-                v-model="editEndDate"
+                v-model="state$.editEndDate"
                 type="date"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 
@@ -349,38 +377,37 @@ onUnmounted(() => {
             <!-- checkbox list -->
             <!--               -->
             <div v-if="!isDraft() && !isValidated()" class="space-y-2 mb-3">
-                <div v-for="todo in getTodos()"
-                    :key="todo.id"
+                <div v-for="task in props.activity.tasks"
+                    :key="task.id"
                     :class="[
                         'flex items-center gap-2 p-1 rounded transition-colors duration-200',
-                        todoToDelete === todo.id ? 'bg-red-900/30 border border-red-500/50' : ''
+                        taskToDelete === task.id ? 'bg-red-900/30 border border-red-500/50' : ''
                     ]">
 
-                    <input :id="todo.id"
+                    <input :id="task.id"
                         type="checkbox"
-                        :checked="todo.completed"
-                        @change="toggleTodo(todo.id)"
+                        :checked="task.completed"
+                        @change="toggleTaskCheckbox(task.id)"
                         class="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500" />
 
-                    <label :for="todo.id"
+                    <label :for="task.id"
                         :class="[
                             'flex-1 text-sm',
                             'select-none',
-                            todo.completed ? 'line-through text-gray-400' : 'text-gray-700'
+                            task.completed ? 'line-through text-gray-400' : 'text-gray-700'
                         ]">
-                        {{ todo.text }}
+                        {{ task.text }}
                     </label>
 
                     <!-- DELETE button -->
                     <button
-                        @click="handleDeleteTodo(todo.id, $event)"
+                        @click="handleDeleteTask(task.id, $event)"
                         :class="[
                             'rounded transition-all duration-200',
-                            todoToDelete === todo.id
+                            taskToDelete === task.id
                                 ? 'text-red-400 hover:text-red-300 opacity-100'
                                 : 'text-black-500 hover:text-black-400 '
-                        ]"
-                        :title="todoToDelete === todo.id ? 'Click again to confirm deletion' : 'Delete todo'">
+                        ]">
 
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -394,35 +421,39 @@ onUnmounted(() => {
                 </div>
             </div>
 
+            <!-- Separator -->
+            <hr v-if="props.activity.tasks?.length > 0 && props.activity.links?.length > 0"
+                class="my-4 border-gray-300" />
+
             <!--               -->
             <!-- Links display -->
             <!--               -->
             <div class="space-y-2 mb-3">
                 <div
-                    v-for="todo in getTodosLink()"
-                    :key="todo.id"
+                    v-for="link in props.activity.links"
+                    :key="link.id"
                     :class="[
                         'flex items-center gap-2 p-1 rounded transition-colors duration-200',
-                        todoToDelete === todo.id ? 'bg-red-900/30 border border-red-500/50' : ''
+                        taskToDelete === link.id ? 'bg-red-900/30 border border-red-500/50' : ''
                     ]">
 
                     <span
                         :class="[
                             'flex-1 text-sm text-blue-600 underline text-ellipsis overflow-hidden whitespace-nowrap',
                         ]">
-                        <a target="_blank" :href="todo.text">{{ getHostName(todo.text) }}</a>
+                        <a target="_blank" :href="link.url">{{ formatLink(link.url) }}</a>
                     </span>
 
                     <!-- DELETE button -->
                     <button
-                        @click="handleDeleteTodo(todo.id, $event)"
+                        @click="handleDeleteLink(link.id, $event)"
                         :class="[
                             'rounded transition-all duration-200',
-                            todoToDelete === todo.id
+                            taskToDelete === link.id
                                 ? 'text-red-400 hover:text-red-300 opacity-100'
                                 : 'text-black-500 hover:text-black-400 '
                         ]"
-                        :title="todoToDelete === todo.id ? 'Click again to confirm deletion' : 'Delete todo'">
+                        :title="taskToDelete === link.id ? 'Click again to confirm deletion' : 'Delete task'">
 
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -466,20 +497,20 @@ onUnmounted(() => {
             <!-- BUTTON add -->
             <div class="flex gap-2 mt-4">
                 <input
-                    v-model="newTodoText"
-                    @keyup.enter="addTodo"
+                    v-model="state$.newEntry"
+                    @keyup.enter="addTaskOrLink"
                     type="text"
-                    placeholder="Add todo or link"
+                    placeholder="Add task or link"
                     class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 
                 <button
-                    @click="addTodo"
+                    @click="addTaskOrLink"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium">
                     Add
                 </button>
 
                 <button
-                    @click="triggerFileInput"
+                    @click="fileInput?.click()"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"

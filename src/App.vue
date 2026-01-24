@@ -4,7 +4,7 @@ import { useLocalStorage } from '@vueuse/core';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import ButtonIcon from './components/ButtonIcon.vue';
 import MonthView from './components/MonthView.vue';
-import type { Activity, ActivityTodoItem, BackupEntry } from './types';
+import type { Activity, ActivityTaskItem, BackupEntry } from './types';
 import { getMonthsBetween, isSameMonth } from './utils/dateUtils';
 import { ACTIVITIES_STORAGE_KEY, BACKUPS_STORAGE_KEY, formatDate, getLocalStorageSizeMB, OLD_ACTIVITIES_KEY } from './utils/storage.utils';
 import { createDownloadLink } from './utils/utils';
@@ -46,11 +46,29 @@ watch(() => newActivityState.startDate, (newDate) => {
 });
 
 onMounted(() => {
+    // migration stuffs of old values
+
     let data: Activity[] = JSON.parse(localStorage.getItem(OLD_ACTIVITIES_KEY) || "[]");
     if (data.length > 0) {
         activities$.value = data;
         localStorage.removeItem(OLD_ACTIVITIES_KEY);
     }
+    activities$.value.forEach(activity => {
+        if (!activity.tasks) {
+            activity.tasks = (activity as any)["todos"]?.filter((t: any) => !t.text.startsWith('http')).map((t: any) => ({
+                id: t.id,
+                text: t.text,
+                completed: t.completed
+            })) || [];
+        }
+        if (!activity.links) {
+            activity.links = (activity as any)["todos"]?.filter((t: any) => t.text.startsWith('http')).map((t: any) => ({
+                id: t.id,
+                url: t.text
+            })) || [];
+        }
+        delete (activity as any)["todos"];
+    });
 });
 
 //
@@ -135,7 +153,7 @@ const getActivitiesListForMonth = (month: Date): Activity[] => {
 const addActivitySubmit = () => {
     if (!newActivityState.title.trim() || !newActivityState.startDate) return;
 
-    const defaultTodo: ActivityTodoItem[] = [{
+    const defaultTodo: ActivityTaskItem[] = [{
         id: Date.now().toString(),
         text: "Ticket event",
         completed: false
@@ -155,7 +173,8 @@ const addActivitySubmit = () => {
         title: newActivityState.title.trim(),
         dateStart: newActivityState.startDate,
         dateEnd: newActivityState.endDate || newActivityState.startDate,
-        todos: defaultTodo,
+        links: [],
+        tasks: [],
         image: [],
         color: "white"
     };
