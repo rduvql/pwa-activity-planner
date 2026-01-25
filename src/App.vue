@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { mdiCheckCircleOutline, mdiContentSaveOutline, mdiDownloadOutline, mdiListBoxOutline, mdiPlusCircleOutline, mdiUploadOutline } from '@mdi/js';
+import { mdiBugCheck, mdiBugOutline, mdiCheckCircleOutline, mdiContentSaveOutline, mdiDebugStepInto, mdiDownloadOutline, mdiListBoxOutline, mdiPlusCircleOutline, mdiUploadOutline } from '@mdi/js';
 import { useLocalStorage } from '@vueuse/core';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import ButtonIcon from './components/ButtonIcon.vue';
@@ -19,6 +19,7 @@ const newActivityState = reactive({
     endDate: ''
 });
 
+const displayedDebugInfo = ref<boolean>(false);
 const displayedBackupList = ref<boolean>(false);
 const backupIcon = ref(mdiContentSaveOutline);
 
@@ -201,6 +202,15 @@ const deleteActivity = (id: string) => {
 </script>
 
 <template>
+    <div v-if="displayedDebugInfo"
+        class="fixed inset-0 bg-white bg-opacity-95 flex items-center justify-center p-4 z-50 overflow-hidden"
+        @click="displayedDebugInfo = false">
+
+        <div class="overflow-y-auto max-h-screen w-full max-w-4xl">
+            <pre><code>{{ JSON.stringify({ activities$ }, null, 2) }}</code></pre>
+        </div>
+    </div>
+
     <!-- backup viewer "modal" -->
     <div v-if="displayedBackupList"
         class="fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center p-4 z-50"
@@ -275,6 +285,13 @@ const deleteActivity = (id: string) => {
                         class="border-purple-600 text-purple-700 bg-purple-50"
                         text="Import"
                         :icon="mdiDownloadOutline">
+                    </ButtonIcon>
+
+                    <ButtonIcon
+                        @click="displayedDebugInfo = !displayedDebugInfo"
+                        class="border-gray-600 text-gray-700 bg-gray-50"
+                        :text="displayedDebugInfo ? 'Hide Debug' : 'Show Debug'"
+                        :icon="mdiBugOutline">
                     </ButtonIcon>
 
                     <!-- Add Activity -->
