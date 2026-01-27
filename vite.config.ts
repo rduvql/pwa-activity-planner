@@ -7,11 +7,12 @@ export default defineConfig({
         host: "0.0.0.0"
     },
     base: "/planner/",
+    publicDir: "public",
     plugins: [
         vue(),
         VitePWA({
             registerType: 'autoUpdate',
-            includeAssets: ['favicon.ico'],
+            includeAssets: ['schedule.ico'],
             manifest: {
                 name: 'Activity Planner',
                 short_name: 'Planner',
@@ -21,12 +22,7 @@ export default defineConfig({
                 scope: '/planner/',
                 icons: [
                     {
-                        src: '/planner/pwa-192x192.png',
-                        sizes: '192x192',
-                        type: 'image/png'
-                    },
-                    {
-                        src: '/planner/pwa-512x512.png',
+                        src: '/planner/schedule.png',
                         sizes: '512x512',
                         type: 'image/png'
                     }
