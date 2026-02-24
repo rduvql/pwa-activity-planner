@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { mdiAlert } from '@mdi/js';
+import { mdiAlert, mdiCheckOutline, mdiCircleOutline, mdiHelpCircleOutline } from '@mdi/js';
 import { onMounted, onUnmounted, reactive, ref } from 'vue';
 import type { Activity, ActivityLinkItem, ActivityTaskItem } from '../types';
 import { formatDate } from '../utils/dateUtils';
@@ -54,6 +54,7 @@ const state$ = reactive({
 const taskToDelete = ref<string | null>(null);
 const imageToDelete = ref<string | null>(null);
 const confirmDelete = ref(false);
+const confirmUncheckId = ref<string | null>(null);
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const imagePreview = ref<string[]>(props.activity.image || []);
@@ -140,13 +141,33 @@ const addTaskOrLink = () => {
     state$.newEntry = '';
 };
 
-const toggleTaskCheckbox = (taskId: string) => {
-    emit('update', {
-        ...props.activity,
-        tasks: props.activity.tasks.map(task =>
-            task.id === taskId ? { ...task, completed: !task.completed } : task
-        )
-    });
+
+const toggleTaskCheckbox = (taskId: string, event: MouseEvent | TouchEvent) => {
+    console.log("toggleTaskCheckbox");
+    event.stopPropagation();
+
+    let task = props.activity.tasks.find(t => t.id === taskId);
+
+    if (task?.completed) {
+        if (confirmUncheckId.value === taskId) {
+            emit('update', {
+                ...props.activity,
+                tasks: props.activity.tasks.map(task =>
+                    task.id === taskId ? { ...task, completed: false } : task
+                )
+            });
+            confirmUncheckId.value = null;
+        } else {
+            confirmUncheckId.value = taskId;
+        }
+    } else {
+        emit('update', {
+            ...props.activity,
+            tasks: props.activity.tasks.map(task =>
+                task.id === taskId ? { ...task, completed: true } : task
+            )
+        });
+    }
 };
 
 const handleDeleteActivity = (event: MouseEvent) => {
@@ -249,6 +270,10 @@ const isDraft = (): boolean => {
 
 const isValidated = (): boolean => {
     return props.activity.title.includes("OK");
+};
+
+const areAllTasksDone = (): boolean => {
+    return props.activity.tasks.every(task => task.completed);
 };
 
 const handleClickOutside = (event: MouseEvent) => {
@@ -376,7 +401,11 @@ const daysFromNow = (date: number | string | Date): string => {
             <!--               -->
             <!-- checkbox list -->
             <!--               -->
-            <div v-if="!isDraft() && !isValidated()" class="space-y-2 mb-3">
+            <div v-if="areAllTasksDone()">
+                <span class="text-gray-400"> All tasks are done! </span>
+            </div>
+
+            <div v-if="!isDraft() && !areAllTasksDone()" class="space-y-2 mb-3">
                 <div v-for="task in props.activity.tasks"
                     :key="task.id"
                     :class="[
@@ -384,18 +413,29 @@ const daysFromNow = (date: number | string | Date): string => {
                         taskToDelete === task.id ? 'bg-red-900/30 border border-red-500/50' : ''
                     ]">
 
-                    <input :id="task.id"
-                        type="checkbox"
-                        :checked="task.completed"
-                        @change="toggleTaskCheckbox(task.id)"
-                        class="w-4 h-4 text-indigo-600 rounded focus:ring-2 focus:ring-indigo-500" />
-
-                    <label :for="task.id"
+                    <span
+                        class="text-green-600 text-sm font-medium"
+                        @click="toggleTaskCheckbox(task.id, $event as any)">
+                        <svg v-if="task.completed && confirmUncheckId !== task.id"
+                            class="w-[1.5em] h-[1.5em] flex-shrink-0" viewBox="0 0 24 24">
+                            <path :d="mdiCheckOutline" />
+                        </svg>
+                        <svg v-if="!task.completed"
+                            class="w-[1.5em] h-[1.5em] flex-shrink-0" viewBox="0 0 24 24">
+                            <path :d="mdiCircleOutline" />
+                        </svg>
+                        <svg v-if="task.completed && confirmUncheckId === task.id"
+                            class="w-[1.5em] h-[1.5em] flex-shrink-0" viewBox="0 0 24 24">
+                            <path :d="mdiHelpCircleOutline" />
+                        </svg>
+                    </span>
+                    <label
                         :class="[
                             'flex-1 text-sm',
                             'select-none',
                             task.completed ? 'line-through text-gray-400' : 'text-gray-700'
-                        ]">
+                        ]"
+                        @click="toggleTaskCheckbox(task.id, $event as any)">
                         {{ task.text }}
                     </label>
 
